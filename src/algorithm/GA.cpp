@@ -3,20 +3,22 @@
 #include <algorithm>
 #include <numeric>
 
-GA::Population GA::initPopulation(int size) {
+GA::Population GA::initPopulation(const TSP& tsp, int size, std::mt19937& gen) {
     Population pop;
     pop.reserve(POP_SIZE);
-    for (int i = 0; i < POP_SIZE; i++)
-        pop.push_back(Randomize().randomSolution(size));
+    for (int i = 0; i < POP_SIZE; i++) {
+        std::vector<int> route = Randomize().randomSolution(size);
+        pop.push_back({route, tsp.evaluate(route)});
+    }
     return pop;
 }
 
-std::vector<int> GA::selection(const Population& pop, const std::vector<double>& fitness, std::mt19937& gen) {
+GA::Individual GA::selection(const Population& pop, std::mt19937& gen) {
     std::uniform_int_distribution<int> distr(0, (int)pop.size() - 1);
     int best = distr(gen);
     for (int i = 1; i < TOURNAMENT_SIZE; i++) {
         int candidate = distr(gen);
-        if (fitness[candidate] < fitness[best])
+        if (pop[candidate].fitness < pop[best].fitness)
             best = candidate;
     }
     return pop[best];
@@ -58,57 +60,69 @@ void GA::mutate(std::vector<int>& solution, std::mt19937& gen) {
         std::uniform_int_distribution<int> distr(0, (int)solution.size() - 1);
         int i = distr(gen);
         int j = distr(gen);
-        while (j == i) j = distr(gen);
-        std::swap(solution[i], solution[j]);
+        if (i > j) std::swap(i, j);
+        std::reverse(solution.begin() + i, solution.begin() + j + 1);
     }
 }
 
 std::pair<std::vector<int>, double> GA::run(const TSP& tsp, int size) {
     std::mt19937 gen(std::random_device{}());
 
-    Population pop = initPopulation(size);
+    Population pop = initPopulation(tsp, size, gen);
 
-    std::vector<double> fitness(POP_SIZE);
-    for (int i = 0; i < POP_SIZE; i++)
-        fitness[i] = tsp.evaluate(pop[i]);
+    auto best_it = std::min_element(pop.begin(), pop.end(),
+        [](const Individual& a, const Individual& b) { return a.fitness < b.fitness; });
+    std::vector<int> best_solution = best_it->route;
+    double best_value = best_it->fitness;
 
-    int best_idx = std::min_element(fitness.begin(), fitness.end()) - fitness.begin();
-    std::vector<int> best_solution = pop[best_idx];
-    double best_value = fitness[best_idx];
+    int elite_count  = (int)(GI * POP_SIZE);
+    int breed_count  = (int)(BR * POP_SIZE);
+    int random_count = POP_SIZE - elite_count - breed_count;
+    int stagnation   = 0;
 
     for (int g = 0; g < GENERATIONS; g++) {
+        // Sort population by fitness so elite selection is just taking the front
+        std::sort(pop.begin(), pop.end(),
+            [](const Individual& a, const Individual& b) { return a.fitness < b.fitness; });
+
         Population new_pop;
         new_pop.reserve(POP_SIZE);
 
-        // Elitism: carry the top ELITE_SIZE solutions unchanged
-        std::vector<int> indices(POP_SIZE);
-        std::iota(indices.begin(), indices.end(), 0);
-        std::partial_sort(indices.begin(), indices.begin() + ELITE_SIZE, indices.end(),
-            [&](int a, int b) { return fitness[a] < fitness[b]; });
-        for (int i = 0; i < ELITE_SIZE; i++)
-            new_pop.push_back(pop[indices[i]]);
+        // 1. Elite (GI%): carry best individuals unchanged
+        for (int i = 0; i < elite_count; i++)
+            new_pop.push_back(pop[i]);
 
-        while ((int)new_pop.size() < POP_SIZE) {
-            std::vector<int> p1 = selection(pop, fitness, gen);
-            std::vector<int> p2 = selection(pop, fitness, gen);
+        // 2. Offspring (BR%): selection + crossover + mutation, fitness evaluated once at creation
+        for (int i = 0; i < breed_count; i++) {
+            Individual p1    = selection(pop, gen);
+            Individual p2    = selection(pop, gen);
+            std::vector<int> route = crossover(p1.route, p2.route, gen);
+            mutate(route, gen);
+            new_pop.push_back({route, tsp.evaluate(route)});
+        }
 
-            std::vector<int> child = crossover(p1, p2, gen);
-
-            mutate(child, gen);
-            new_pop.push_back(child);
+        // 3. Random (remainder%): fresh solutions to maintain diversity
+        for (int i = 0; i < random_count; i++) {
+            std::vector<int> route = Randomize().randomSolution(size);
+            new_pop.push_back({route, tsp.evaluate(route)});
         }
 
         pop = std::move(new_pop);
 
-        for (int i = 0; i < POP_SIZE; i++)
-            fitness[i] = tsp.evaluate(pop[i]);
+        // Update best and check stagnation
+        auto it = std::min_element(pop.begin(), pop.end(),
+            [](const Individual& a, const Individual& b) { return a.fitness < b.fitness; });
 
-        for (int i = 0; i < POP_SIZE; i++) {
-            if (fitness[i] < best_value) {
-                best_value    = fitness[i];
-                best_solution = pop[i];
-            }
+        if (it->fitness < best_value) {
+            best_value    = it->fitness;
+            best_solution = it->route;
+            stagnation    = 0;
+        } else {
+            stagnation++;
         }
+
+        if (stagnation >= STAGNATION_LIMIT)
+            break;
     }
 
     return {best_solution, best_value};

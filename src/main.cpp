@@ -26,7 +26,7 @@ void printSolution(const std::vector<int>& solution, double value, const Graph& 
 
 int main() {
     Graph g = buildWorldMap();
-    TSP tsp(36);
+    TSP tsp(50);
     tsp.addGraph(g);
 
     Randomize randomize;
@@ -46,7 +46,7 @@ int main() {
 
         if (choice == 0) break;
 
-        std::vector<int> initial = randomize.randomSolution(36);
+        std::vector<int> initial = randomize.randomSolution(50);
         double initial_value = tsp.evaluate(initial);
         std::cout << "\nInitial solution:\n  ";
         for (int id : initial) std::cout << "[" << (id + 1) << "] ";
@@ -80,7 +80,7 @@ int main() {
 
         } else if (choice == 4) {
             GA ga;
-            auto [solution, value] = ga.run(tsp, 36);
+            auto [solution, value] = ga.run(tsp, 50);
             best_solution = solution;
             best_value = value;
 

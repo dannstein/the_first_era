@@ -5,19 +5,27 @@
 
 class GA {
 public:
-    static constexpr int    POP_SIZE        = 200;
-    static constexpr int    GENERATIONS     = 1000;
-    static constexpr double MUTATION_RATE   = 0.07;
-    static constexpr int    TOURNAMENT_SIZE = 5;
-    static constexpr int    ELITE_SIZE      = 2;
+    static constexpr int    POP_SIZE         = 200;
+    static constexpr int    GENERATIONS      = 500;
+    static constexpr double MUTATION_RATE    = 0.08; // raised: more diversity, less premature convergence
+    static constexpr int    TOURNAMENT_SIZE  = 3;    // kept low: better diversity for this problem size
+    static constexpr double GI               = 0.1;  // Generation Interval: % kept as elite
+    static constexpr double BR               = 0.8;  // Breeding Rate: % produced by crossover
+    static constexpr int    STAGNATION_LIMIT = 75;   // tighter: stop sooner when truly stuck
+    // Remainder (1 - GI - BR) = 10% random injections for diversity
 
     std::pair<std::vector<int>, double> run(const TSP& tsp, int size);
 
 private:
-    using Population = std::vector<std::vector<int>>;
+    struct Individual {
+        std::vector<int> route;
+        double fitness;
+    };
 
-    Population       initPopulation(int size);
-    std::vector<int> selection(const Population& pop, const std::vector<double>& fitness, std::mt19937& gen);
+    using Population = std::vector<Individual>;
+
+    Population       initPopulation(const TSP& tsp, int size, std::mt19937& gen);
+    Individual       selection(const Population& pop, std::mt19937& gen);
     std::vector<int> crossover(const std::vector<int>& p1, const std::vector<int>& p2, std::mt19937& gen);
     void             mutate(std::vector<int>& solution, std::mt19937& gen);
 };
