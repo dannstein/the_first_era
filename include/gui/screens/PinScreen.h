@@ -20,7 +20,7 @@ public:
 private:
     static constexpr float SIDEBAR_W  = 230.f;
     static constexpr float ITEM_H     = 17.f;
-    static constexpr float BOT_AREA   = 80.f;
+    static constexpr float BOT_AREA   = 95.f;
     static constexpr float MAP_IMG_W  = 1672.f;
     static constexpr float MAP_IMG_H  = 941.f;
     static constexpr float NODE_R     = 8.f;   // world-space radius
@@ -53,6 +53,12 @@ private:
     sf::Text           m_backBtn;
     sf::Text           m_presetLabel;
     sf::Text           m_presetInput;
+
+    // Explicit hit rects updated by drawSidebar() — avoids relying on
+    // sf::Text::getGlobalBounds() which returns tight glyph-only bounds.
+    sf::FloatRect      m_saveBtnRect;
+    sf::FloatRect      m_backBtnRect;
+    sf::FloatRect      m_presetInputRect;
 
     // Set by draw() so handleEvent can convert pixel→world coordinates.
     sf::RenderWindow*  m_window = nullptr;

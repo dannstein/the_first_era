@@ -133,9 +133,9 @@ void PinScreen::handleEvent(const sf::Event& event, AppState& next, TransitionDa
         }
 
         if (event.mouseButton.button == sf::Mouse::Left) {
-            if (m_backBtn.getGlobalBounds().contains(click))  { next = AppState::MainMenu; return; }
+            if (m_backBtnRect.contains(click))  { next = AppState::MainMenu; return; }
 
-            if (m_positions.allPlaced() && m_saveBtn.getGlobalBounds().contains(click)) {
+            if (m_positions.allPlaced() && m_saveBtnRect.contains(click)) {
                 std::string path = NodePositions::presetPath(m_configDir, m_presetName);
                 std::filesystem::create_directories(m_configDir);
                 m_positions.saveToFile(path);
@@ -143,7 +143,7 @@ void PinScreen::handleEvent(const sf::Event& event, AppState& next, TransitionDa
                 return;
             }
 
-            if (m_presetInput.getGlobalBounds().contains(click)) { m_editingName = true; return; }
+            if (m_presetInputRect.contains(click)) { m_editingName = true; return; }
 
             // Sidebar: select node
             if (click.x < SIDEBAR_W && click.y < WIN_H - BOT_AREA) {
@@ -250,24 +250,37 @@ void PinScreen::drawSidebar(sf::RenderWindow& window) {
     sep.setFillColor(sf::Color(100, 80, 40, 180));
     window.draw(sep);
 
-    float botY = scrollAreaH + 6.f;
+    float botY = scrollAreaH + 4.f;
+
+    // Row 0: "Preset name:" + input
     m_presetLabel.setPosition(6.f, botY);
     window.draw(m_presetLabel);
-
     std::string display = m_presetName.empty() ? "WorldMap" : m_presetName;
     if (m_editingName) display += "_";
     m_presetInput.setString(display);
-    m_presetInput.setPosition(6.f, botY + 17.f);
+    m_presetInput.setPosition(90.f, botY + 1.f);
+    m_presetInputRect = sf::FloatRect(88.f, botY - 2.f, SIDEBAR_W - 96.f, 18.f);
     window.draw(m_presetInput);
 
-    m_backBtn.setPosition(6.f, botY + 36.f);
-    window.draw(m_backBtn);
-
+    // Row 1: [ Save ] — full width, only when all placed
     if (m_positions.allPlaced()) {
-        m_saveBtn.setPosition(110.f, botY + 36.f);
+        sf::RectangleShape saveBg(sf::Vector2f(SIDEBAR_W - 12.f, 20.f));
+        saveBg.setPosition(6.f, botY + 20.f);
+        saveBg.setFillColor(sf::Color(30, 80, 30, 200));
+        saveBg.setOutlineColor(sf::Color(80, 180, 80, 180));
+        saveBg.setOutlineThickness(1.f);
+        window.draw(saveBg);
+        m_saveBtn.setPosition(12.f, botY + 22.f);
+        m_saveBtnRect = sf::FloatRect(6.f, botY + 18.f, SIDEBAR_W - 12.f, 24.f);
         window.draw(m_saveBtn);
     }
 
+    // Row 2: [ Back ]
+    m_backBtn.setPosition(6.f, botY + 48.f);
+    m_backBtnRect = sf::FloatRect(6.f, botY + 44.f, SIDEBAR_W - 12.f, 22.f);
+    window.draw(m_backBtn);
+
+    // Row 3: counter
     int placed = 0;
     for (int i = 0; i < NodePositions::NODE_COUNT; i++)
         if (m_positions.isPlaced(i)) placed++;
@@ -276,7 +289,7 @@ void PinScreen::drawSidebar(sf::RenderWindow& window) {
     counter.setCharacterSize(11);
     counter.setFillColor(sf::Color(180, 170, 140));
     counter.setString(std::to_string(placed) + " / 50 placed");
-    counter.setPosition(6.f, botY + 60.f);
+    counter.setPosition(6.f, botY + 70.f);
     window.draw(counter);
 }
 

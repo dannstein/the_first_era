@@ -60,6 +60,8 @@ void Application::switchTo(AppState next, const TransitionData& data) {
             break;
         }
         case AppState::Pin:
+            // Always reload from disk so previously saved changes are reflected.
+            m_positions.loadFromFile(NodePositions::presetPath(CFG_DIR, "WorldMap"));
             m_screen = std::make_unique<PinScreen>(
                 m_assets, m_graph, m_positions, CFG_DIR);
             break;
