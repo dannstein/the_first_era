@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include "core/TSP.h"
+#include "algorithm/AlgoCallback.h"
 
 class SA {
 public:
@@ -8,7 +9,8 @@ public:
     static constexpr double TF = 0.001;
     static constexpr double FR = 0.995;
 
-    std::pair<std::vector<int>, double> Annealing(const std::vector<int>& solution, double value, const TSP& tsp);
+    std::pair<std::vector<int>, double> Annealing(const std::vector<int>& solution, double value,
+                                                    const TSP& tsp, AlgoCallback cb = nullptr);
 
 private:
     std::pair<std::vector<int>, double> Neighbor(const std::vector<int>& solution, const TSP& tsp);

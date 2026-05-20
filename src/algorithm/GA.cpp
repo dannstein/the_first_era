@@ -65,7 +65,7 @@ void GA::mutate(std::vector<int>& solution, std::mt19937& gen) {
     }
 }
 
-std::pair<std::vector<int>, double> GA::run(const TSP& tsp, int size) {
+std::pair<std::vector<int>, double> GA::run(const TSP& tsp, int size, AlgoCallback cb) {
     std::mt19937 gen(std::random_device{}());
 
     Population pop = initPopulation(tsp, size, gen);
@@ -120,6 +120,9 @@ std::pair<std::vector<int>, double> GA::run(const TSP& tsp, int size) {
         } else {
             stagnation++;
         }
+
+        // Pass current generation's best (not all-time best) so the animation shows evolution
+        if (cb) cb(it->route, it->fitness);
 
         if (stagnation >= STAGNATION_LIMIT)
             break;

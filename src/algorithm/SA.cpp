@@ -16,7 +16,8 @@ std::pair<std::vector<int>, double> SA::Neighbor(const std::vector<int>& solutio
     return {s, tsp.evaluate(s)};
 }
 
-std::pair<std::vector<int>, double> SA::Annealing(const std::vector<int>& solution, double value, const TSP& tsp) {
+std::pair<std::vector<int>, double> SA::Annealing(const std::vector<int>& solution, double value,
+                                                    const TSP& tsp, AlgoCallback cb) {
     std::vector<int> current = solution;
     double current_value = value;
 
@@ -47,6 +48,7 @@ std::pair<std::vector<int>, double> SA::Annealing(const std::vector<int>& soluti
             }
         }
 
+        if (cb) cb(current, current_value);
         temperature *= FR;
     }
 

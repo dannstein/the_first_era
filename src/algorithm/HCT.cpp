@@ -1,6 +1,7 @@
 #include "algorithm/HCT.h"
 
-std::pair<std::vector<int>, double> HCT::Hill(const std::vector<int>& solution, double value, const TSP& tsp, int t_max) {
+std::pair<std::vector<int>, double> HCT::Hill(const std::vector<int>& solution, double value,
+                                               const TSP& tsp, int t_max, AlgoCallback cb) {
     std::vector<int> current = solution;
     double current_value = value;
 
@@ -21,10 +22,12 @@ std::pair<std::vector<int>, double> HCT::Hill(const std::vector<int>& solution, 
                 best_solution = current;
                 best_value = current_value;
             }
+            if (cb) cb(current, current_value);
         } else if (t < t_max) {
             current = new_solution;
             current_value = new_value;
             t++;
+            if (cb) cb(current, current_value);
         } else {
             return {best_solution, best_value};
         }

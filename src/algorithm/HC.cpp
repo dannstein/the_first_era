@@ -1,6 +1,7 @@
 #include "algorithm/HC.h"
 
-std::pair<std::vector<int>, double> HC::Hill(const std::vector<int>& solution, double value, const TSP& tsp) {
+std::pair<std::vector<int>, double> HC::Hill(const std::vector<int>& solution, double value,
+                                              const TSP& tsp, AlgoCallback cb) {
     std::vector<int> current = solution;
     double current_value = value;
 
@@ -10,6 +11,7 @@ std::pair<std::vector<int>, double> HC::Hill(const std::vector<int>& solution, d
         if (new_value < current_value) {
             current = new_solution;
             current_value = new_value;
+            if (cb) cb(current, current_value);
         } else {
             return {current, current_value};
         }

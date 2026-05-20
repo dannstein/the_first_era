@@ -2,6 +2,7 @@
 #include <vector>
 #include <random>
 #include "core/TSP.h"
+#include "algorithm/AlgoCallback.h"
 
 class GA {
 public:
@@ -14,7 +15,8 @@ public:
     static constexpr int    STAGNATION_LIMIT = 75;   // tighter: stop sooner when truly stuck
     // Remainder (1 - GI - BR) = 10% random injections for diversity
 
-    std::pair<std::vector<int>, double> run(const TSP& tsp, int size);
+    std::pair<std::vector<int>, double> run(const TSP& tsp, int size,
+                                             AlgoCallback cb = nullptr);
 
 private:
     struct Individual {
