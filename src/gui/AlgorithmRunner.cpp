@@ -8,10 +8,13 @@
 
 void AlgorithmRunner::run(int algoChoice, int hctTMax,
                           const TSP& tsp, int nodeCount,
-                          int maxFrames) {
+                          int fixedStart, int maxFrames,
+                          SAParams saParams, GAParams gaParams) {
     m_frames.clear();
     m_best.clear();
-    m_bestCost = 0.0;
+    m_initialRoute.clear();
+    m_bestCost    = 0.0;
+    m_initialCost = 0.0;
 
     double bestSoFar = std::numeric_limits<double>::max();
 
@@ -24,32 +27,41 @@ void AlgorithmRunner::run(int algoChoice, int hctTMax,
     Randomize rng;
 
     if (algoChoice == 1) {
-        auto initial = rng.randomSolution(nodeCount);
+        auto initial = rng.randomSolution(nodeCount, fixedStart);
         double initCost = tsp.evaluate(initial);
+        m_initialCost  = initCost;
+        m_initialRoute = initial;
         HC hc;
-        auto [sol, cost] = hc.Hill(initial, initCost, tsp, cb);
+        auto [sol, cost] = hc.Hill(initial, initCost, tsp, fixedStart, cb);
         m_best     = sol;
         m_bestCost = cost;
 
     } else if (algoChoice == 2) {
-        auto initial = rng.randomSolution(nodeCount);
+        auto initial = rng.randomSolution(nodeCount, fixedStart);
         double initCost = tsp.evaluate(initial);
+        m_initialCost  = initCost;
+        m_initialRoute = initial;
         HCT hct;
-        auto [sol, cost] = hct.Hill(initial, initCost, tsp, hctTMax, cb);
+        auto [sol, cost] = hct.Hill(initial, initCost, tsp, hctTMax, nodeCount, fixedStart, cb);
         m_best     = sol;
         m_bestCost = cost;
 
     } else if (algoChoice == 3) {
-        auto initial = rng.randomSolution(nodeCount);
+        auto initial = rng.randomSolution(nodeCount, fixedStart);
         double initCost = tsp.evaluate(initial);
+        m_initialCost  = initCost;
+        m_initialRoute = initial;
         SA sa;
-        auto [sol, cost] = sa.Annealing(initial, initCost, tsp, cb);
+        auto [sol, cost] = sa.Annealing(initial, initCost, tsp, fixedStart, cb, saParams);
         m_best     = sol;
         m_bestCost = cost;
 
     } else {
+        auto initial = rng.randomSolution(nodeCount, fixedStart);
+        m_initialCost  = tsp.evaluate(initial);
+        m_initialRoute = initial;
         GA ga;
-        auto [sol, cost] = ga.run(tsp, nodeCount, cb);
+        auto [sol, cost] = ga.run(tsp, nodeCount, fixedStart, cb, gaParams);
         m_best     = sol;
         m_bestCost = cost;
     }
@@ -72,6 +84,8 @@ void AlgorithmRunner::run(int algoChoice, int hctTMax,
     }
 }
 
-const std::vector<AnimFrame>& AlgorithmRunner::frames()    const { return m_frames; }
-const std::vector<int>&       AlgorithmRunner::bestRoute() const { return m_best; }
-double                        AlgorithmRunner::bestCost()  const { return m_bestCost; }
+const std::vector<AnimFrame>& AlgorithmRunner::frames()       const { return m_frames; }
+const std::vector<int>&       AlgorithmRunner::bestRoute()    const { return m_best; }
+const std::vector<int>&       AlgorithmRunner::initialRoute() const { return m_initialRoute; }
+double                        AlgorithmRunner::bestCost()     const { return m_bestCost; }
+double                        AlgorithmRunner::initialCost()  const { return m_initialCost; }

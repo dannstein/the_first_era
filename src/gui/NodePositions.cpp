@@ -5,10 +5,8 @@
 #include <algorithm>
 #include <iostream>
 
-NodePositions::NodePositions() {
-    m_placed.fill(false);
-    m_pos.fill({0.f, 0.f});
-}
+NodePositions::NodePositions(int size)
+    : m_size(size), m_pos(size, {0.f, 0.f}), m_placed(size, false) {}
 
 bool NodePositions::loadFromFile(const std::string& path) {
     std::ifstream f(path);
@@ -19,7 +17,7 @@ bool NodePositions::loadFromFile(const std::string& path) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream ss(line);
         int id; float x, y;
-        if (ss >> id >> x >> y && id >= 0 && id < NODE_COUNT) {
+        if (ss >> id >> x >> y && id >= 0 && id < m_size) {
             m_pos[id]    = {x, y};
             m_placed[id] = true;
         }
@@ -31,18 +29,21 @@ void NodePositions::saveToFile(const std::string& path) const {
     std::ofstream f(path);
     f << "# The First Era — node positions (image-space pixels)\n";
     f << "# id x y\n";
-    for (int i = 0; i < NODE_COUNT; i++)
+    for (int i = 0; i < m_size; i++)
         if (m_placed[i])
             f << i << " " << m_pos[i].x << " " << m_pos[i].y << "\n";
 }
 
-bool         NodePositions::isPlaced(int id) const { return m_placed[id]; }
-bool         NodePositions::allPlaced() const {
-    for (bool b : m_placed) if (!b) return false;
+int          NodePositions::size()               const { return m_size; }
+bool         NodePositions::isPlaced(int id)     const { return id >= 0 && id < m_size && m_placed[id]; }
+bool         NodePositions::allPlaced()          const {
+    for (int i = 0; i < m_size; i++) if (!m_placed[i]) return false;
     return true;
 }
 sf::Vector2f NodePositions::get(int id)          const { return m_pos[id]; }
-void         NodePositions::set(int id, sf::Vector2f p) { m_pos[id] = p; m_placed[id] = true; }
+void         NodePositions::set(int id, sf::Vector2f p) {
+    if (id >= 0 && id < m_size) { m_pos[id] = p; m_placed[id] = true; }
+}
 
 void NodePositions::applyFallback() {
     // Approximate positions on the 1672x941 image by region
@@ -72,7 +73,7 @@ void NodePositions::applyFallback() {
         {1260, 800}, {1150, 770}, {1320, 690},                            // 47-49
     };
 
-    for (int i = 0; i < NODE_COUNT; i++) {
+    for (int i = 0; i < NODE_COUNT && i < m_size; i++) {
         if (!m_placed[i]) {
             m_pos[i]    = fallback[i];
             m_placed[i] = true;

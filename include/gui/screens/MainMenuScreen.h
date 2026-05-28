@@ -15,7 +15,7 @@ private:
     AssetManager& m_assets;
     sf::Sprite    m_mapSprite;
     sf::Text      m_title;
-    sf::Text      m_opts[3];
+    sf::Text      m_opts[4];
 
     void select(int choice, AppState& next, TransitionData& data);
 };

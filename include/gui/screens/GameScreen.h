@@ -1,17 +1,20 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <vector>
 #include "gui/Screen.h"
 #include "gui/AssetManager.h"
 #include "gui/NodePositions.h"
 #include "gui/AlgorithmRunner.h"
 #include "core/Graph.h"
 #include "core/TSP.h"
+#include "algorithm/AlgoParams.h"
 
 class GameScreen : public Screen {
 public:
     GameScreen(AssetManager& assets, const Graph& graph, const TSP& tsp,
                NodePositions positions,
-               int algoChoice, int hctTMax);
+               int algoChoice, int hctTMax, int fixedStart = -1,
+               SAParams saParams = {}, GAParams gaParams = {});
 
     void handleEvent(const sf::Event& event, AppState& next, TransitionData& data) override;
     void update(float dt) override;
@@ -24,6 +27,16 @@ private:
     NodePositions   m_positions;
     AlgorithmRunner m_runner;
 
+    // Config kept for stats display
+    int      m_algoChoice = 0;
+    int      m_hctTMax    = 5;
+    int      m_fixedStart = -1;
+    SAParams m_saParams;
+    GAParams m_gaParams;
+
+    // Cached APSP distances for per-step cost display
+    std::vector<std::vector<double>> m_distMatrix;
+
     // View for zoom/pan of the map area
     sf::View        m_mapView;
     float           m_currentZoom = 1.f;
@@ -35,8 +48,9 @@ private:
     float           m_animTimer   = 0.f;
     bool            m_animDone    = false;
 
-    // Stats overlay scroll
+    // Stats overlay
     int             m_statsScroll = 0;
+    sf::Vector2f    m_mousePos    = {-1.f, -1.f};
 
     sf::Text        m_backBtn;
     sf::Text        m_zoomHint;

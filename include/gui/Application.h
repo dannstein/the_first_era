@@ -15,9 +15,12 @@ public:
 private:
     sf::RenderWindow        m_window;
     AssetManager            m_assets;
-    Graph                   m_graph{1};   // resized in init()
-    TSP                     m_tsp{1};     // resized in init()
+    Graph                   m_graph{1};       // default 50-node WorldMap
+    TSP                     m_tsp{1};
     NodePositions           m_positions;
+    Graph                   m_randomGraph{1}; // generated on-demand for random mode
+    TSP                     m_randomTsp{1};
+    NodePositions           m_randomPositions;
     AppState                m_state  = AppState::MainMenu;
     TransitionData          m_data;
     std::unique_ptr<Screen> m_screen;

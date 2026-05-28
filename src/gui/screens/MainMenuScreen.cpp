@@ -18,12 +18,13 @@ MainMenuScreen::MainMenuScreen(AssetManager& assets) : m_assets(assets) {
     m_title.setFillColor(sf::Color(220, 200, 150));
     m_title.setStyle(sf::Text::Bold);
 
-    const char* labels[3] = {
+    const char* labels[4] = {
         "[1]  Enter Game",
         "[2]  Pin Landmarks",
-        "[3]  Exit"
+        "[3]  Overall Benchmark",
+        "[4]  Exit"
     };
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         m_opts[i].setFont(m_assets.font());
         m_opts[i].setString(labels[i]);
         m_opts[i].setCharacterSize(22);
@@ -32,10 +33,10 @@ MainMenuScreen::MainMenuScreen(AssetManager& assets) : m_assets(assets) {
 }
 
 void MainMenuScreen::select(int choice, AppState& next, TransitionData& data) {
-    if      (choice == 1) { next = AppState::AlgoSelect; }
+    if      (choice == 1) { data = {}; next = AppState::GraphSetup; }
     else if (choice == 2) { next = AppState::Pin; }
-    else if (choice == 3) { next = AppState::Exit; }
-    (void)data;
+    else if (choice == 3) { data = {}; data.overallBenchmark = true; next = AppState::OverallBenchmarkSetup; }
+    else if (choice == 4) { next = AppState::Exit; }
 }
 
 void MainMenuScreen::handleEvent(const sf::Event& event, AppState& next, TransitionData& data) {
@@ -43,17 +44,18 @@ void MainMenuScreen::handleEvent(const sf::Event& event, AppState& next, Transit
         if (event.key.code == sf::Keyboard::Num1) select(1, next, data);
         if (event.key.code == sf::Keyboard::Num2) select(2, next, data);
         if (event.key.code == sf::Keyboard::Num3) select(3, next, data);
+        if (event.key.code == sf::Keyboard::Num4) select(4, next, data);
     }
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
         sf::Vector2f click(event.mouseButton.x, event.mouseButton.y);
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             if (m_opts[i].getGlobalBounds().contains(click))
                 select(i + 1, next, data);
         }
     }
     if (event.type == sf::Event::MouseMoved) {
         sf::Vector2f mouse(event.mouseMove.x, event.mouseMove.y);
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             bool hover = m_opts[i].getGlobalBounds().contains(mouse);
             m_opts[i].setFillColor(hover ? sf::Color(255, 240, 180) : sf::Color(200, 190, 160));
         }
@@ -71,7 +73,7 @@ void MainMenuScreen::draw(sf::RenderWindow& window) {
     window.draw(overlay);
 
     // Menu panel
-    constexpr float PW = 400.f, PH = 220.f;
+    constexpr float PW = 400.f, PH = 260.f;
     float px = (WIN_W - PW) / 2.f;
     float py = (WIN_H - PH) / 2.f;
     sf::RectangleShape panel(sf::Vector2f(PW, PH));
@@ -88,7 +90,7 @@ void MainMenuScreen::draw(sf::RenderWindow& window) {
     window.draw(m_title);
 
     // Options
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         m_opts[i].setPosition(px + 40.f, py + 80.f + i * 40.f);
         window.draw(m_opts[i]);
     }

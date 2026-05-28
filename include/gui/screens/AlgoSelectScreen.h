@@ -17,17 +17,12 @@ private:
     sf::Sprite    m_mapSprite;
     sf::Text      m_title;
     sf::Text      m_algoOpts[4];
-    sf::Text      m_hctLabel;
-    sf::Text      m_hctInput;
     sf::Text      m_startBtn;
     sf::Text      m_backBtn;
 
-    int           m_selected   = 0;   // 0 = none chosen yet
-    int           m_hovered    = -1;  // tracked separately to avoid color bleed
-    bool          m_enteringT  = false;
-    std::string   m_tMaxStr;
+    int  m_selected = 0;   // 0 = none chosen yet
+    int  m_hovered  = -1;
 
-    void setSelected(int choice);     // sets m_selected and auto-activates t_max input
-
-    void confirm(AppState& next, TransitionData& data);
+    void setSelected(int choice);
+    void confirm(AppState& next, TransitionData& data) const;
 };

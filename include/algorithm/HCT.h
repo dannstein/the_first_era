@@ -6,8 +6,9 @@
 class HCT {
 public:
     std::pair<std::vector<int>, double> Hill(const std::vector<int>& solution, double value,
-                                             const TSP& tsp, int t_max,
-                                             AlgoCallback cb = nullptr);
+                                             const TSP& tsp, int t_max, int nodeCount,
+                                             int fixedStart = -1, AlgoCallback cb = nullptr);
 
-    std::pair<std::vector<int>, double> Neighbors(const std::vector<int>& solution, const TSP& tsp);
+    std::pair<std::vector<int>, double> Neighbors(const std::vector<int>& solution, const TSP& tsp,
+                                                   int fixedStart = -1);
 };

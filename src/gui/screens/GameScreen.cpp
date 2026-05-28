@@ -1,16 +1,24 @@
 #include "gui/screens/GameScreen.h"
 #include "core/Node.h"
+#include "core/Edge.h"
 #include <SFML/Window/Keyboard.hpp>
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <algorithm>
 
 static constexpr float WIN_W  = 1600.f;
 static constexpr float WIN_H  = 900.f;
 static constexpr float IMG_W  = 1672.f;
 static constexpr float IMG_H  = 941.f;
-static constexpr float NODE_R = 8.f;      // node radius in world-space (image pixels)
+static constexpr float NODE_R = 8.f;
 static constexpr float FRAME_DURATION = 0.05f;
+
+// Stats panel geometry (right side)
+static constexpr float STATS_PW = 380.f;
+static constexpr float STATS_PH = WIN_H - 40.f;   // 860
+static constexpr float STATS_PX = WIN_W - STATS_PW - 10.f;  // 1210
+static constexpr float STATS_PY = 20.f;
 
 static const sf::Color COL_EDGE_ROAD  = sf::Color(190, 150,  80, 160);
 static const sf::Color COL_ANIM_PATH  = sf::Color(230,  50,  50, 220);
@@ -18,7 +26,6 @@ static const sf::Color COL_FINAL_PATH = sf::Color(245, 215,  40, 240);
 static const sf::Color COL_NODE_FILL  = sf::Color(230, 220, 190);
 static const sf::Color COL_NODE_OUT   = sf::Color( 40,  25,  10);
 
-// Draws a thick line in the current view (world-space coordinates).
 static void drawThickLine(sf::RenderWindow& window,
                           sf::Vector2f a, sf::Vector2f b,
                           sf::Color color, float thickness) {
@@ -37,13 +44,13 @@ static void drawThickLine(sf::RenderWindow& window,
 }
 
 GameScreen::GameScreen(AssetManager& assets, const Graph& graph, const TSP& tsp,
-                       NodePositions positions, int algoChoice, int hctTMax)
-    : m_assets(assets), m_graph(graph), m_positions(std::move(positions))
+                       NodePositions positions, int algoChoice, int hctTMax, int fixedStart,
+                       SAParams saParams, GAParams gaParams)
+    : m_assets(assets), m_graph(graph), m_positions(std::move(positions)),
+      m_algoChoice(algoChoice), m_hctTMax(hctTMax), m_fixedStart(fixedStart),
+      m_saParams(saParams), m_gaParams(gaParams)
 {
-    // Map sprite drawn at (0,0) with no scaling; the view handles zoom/pan.
     m_mapSprite.setTexture(m_assets.mapTexture());
-
-    // View shows the full image by default, stretched to fill the window.
     m_mapView = sf::View(sf::FloatRect(0.f, 0.f, IMG_W, IMG_H));
 
     m_backBtn.setFont(m_assets.font());
@@ -55,13 +62,14 @@ GameScreen::GameScreen(AssetManager& assets, const Graph& graph, const TSP& tsp,
     m_zoomHint.setFont(m_assets.font());
     m_zoomHint.setCharacterSize(13);
     m_zoomHint.setFillColor(sf::Color(160, 150, 120, 180));
-    m_zoomHint.setString("Scroll: zoom  |  Right-drag: pan  |  ESC: back");
+    m_zoomHint.setString("Scroll: zoom  |  Right-drag: pan  |  Scroll panel: list  |  ESC: back");
     m_zoomHint.setPosition(130.f, WIN_H - 26.f);
 
-    if (!m_positions.allPlaced())
+    if (m_graph.size() == NodePositions::NODE_COUNT && !m_positions.allPlaced())
         m_positions.applyFallback();
 
-    m_runner.run(algoChoice, hctTMax, tsp, 50, 250);
+    m_distMatrix = m_graph.allPairsShortestPath();
+    m_runner.run(algoChoice, hctTMax, tsp, m_graph.size(), fixedStart, 250, saParams, gaParams);
 }
 
 void GameScreen::handleEvent(const sf::Event& event, AppState& next, TransitionData& data) {
@@ -83,41 +91,47 @@ void GameScreen::handleEvent(const sf::Event& event, AppState& next, TransitionD
         event.mouseButton.button == sf::Mouse::Right)
         m_panning = false;
 
-    if (event.type == sf::Event::MouseMoved && m_panning) {
-        sf::Vector2i curr(event.mouseMove.x, event.mouseMove.y);
-        // Convert pixel delta to world-space delta via the view transform.
-        sf::Vector2f worldA = sf::Vector2f(m_panStart);
-        sf::Vector2f worldB = sf::Vector2f(curr);
-        // Scale the pixel delta by (view size / window size) to get world units.
-        sf::Vector2f viewSize = m_mapView.getSize();
-        sf::Vector2f delta;
-        delta.x = (worldA.x - worldB.x) * (viewSize.x / WIN_W);
-        delta.y = (worldA.y - worldB.y) * (viewSize.y / WIN_H);
-        m_mapView.move(delta);
-        m_panStart = curr;
+    if (event.type == sf::Event::MouseMoved) {
+        m_mousePos = sf::Vector2f(event.mouseMove.x, event.mouseMove.y);
+        if (m_panning) {
+            sf::Vector2i curr(event.mouseMove.x, event.mouseMove.y);
+            sf::Vector2f viewSize = m_mapView.getSize();
+            sf::Vector2f delta;
+            delta.x = (float)(m_panStart.x - curr.x) * (viewSize.x / WIN_W);
+            delta.y = (float)(m_panStart.y - curr.y) * (viewSize.y / WIN_H);
+            m_mapView.move(delta);
+            m_panStart = curr;
+        }
     }
 
     if (event.type == sf::Event::MouseWheelScrolled) {
-        float factor = (event.mouseWheelScroll.delta > 0) ? 0.85f : 1.f / 0.85f;
-        float newZoom = m_currentZoom * factor;
-        if (newZoom < 0.1f || newZoom > 3.f) return;
-        m_currentZoom = newZoom;
-        // Zoom centered on the mouse cursor position.
-        sf::Vector2f before = m_mapView.getCenter()
-            + sf::Vector2f(
-                (event.mouseWheelScroll.x - WIN_W * 0.5f) * m_mapView.getSize().x / WIN_W,
-                (event.mouseWheelScroll.y - WIN_H * 0.5f) * m_mapView.getSize().y / WIN_H);
-        m_mapView.zoom(factor);
-        sf::Vector2f after = m_mapView.getCenter()
-            + sf::Vector2f(
-                (event.mouseWheelScroll.x - WIN_W * 0.5f) * m_mapView.getSize().x / WIN_W,
-                (event.mouseWheelScroll.y - WIN_H * 0.5f) * m_mapView.getSize().y / WIN_H);
-        m_mapView.move(before - after);
-    }
+        float mx = event.mouseWheelScroll.x;
+        float my = event.mouseWheelScroll.y;
+        bool overPanel = m_animDone &&
+            mx >= STATS_PX && mx <= STATS_PX + STATS_PW &&
+            my >= STATS_PY && my <= STATS_PY + STATS_PH;
 
-    if (event.type == sf::Event::MouseWheelScrolled && m_animDone)
-        m_statsScroll -= (int)event.mouseWheelScroll.delta;
-    if (m_statsScroll < 0) m_statsScroll = 0;
+        if (overPanel) {
+            m_statsScroll -= (int)event.mouseWheelScroll.delta;
+            if (m_statsScroll < 0) m_statsScroll = 0;
+        } else {
+            float factor = (event.mouseWheelScroll.delta > 0) ? 0.85f : 1.f / 0.85f;
+            float newZoom = m_currentZoom * factor;
+            if (newZoom >= 0.1f && newZoom <= 3.f) {
+                m_currentZoom = newZoom;
+                sf::Vector2f before = m_mapView.getCenter()
+                    + sf::Vector2f(
+                        (mx - WIN_W * 0.5f) * m_mapView.getSize().x / WIN_W,
+                        (my - WIN_H * 0.5f) * m_mapView.getSize().y / WIN_H);
+                m_mapView.zoom(factor);
+                sf::Vector2f after = m_mapView.getCenter()
+                    + sf::Vector2f(
+                        (mx - WIN_W * 0.5f) * m_mapView.getSize().x / WIN_W,
+                        (my - WIN_H * 0.5f) * m_mapView.getSize().y / WIN_H);
+                m_mapView.move(before - after);
+            }
+        }
+    }
 
     (void)data;
 }
@@ -216,64 +230,275 @@ void GameScreen::drawNodes(sf::RenderWindow& window, const std::vector<int>& hig
         window.draw(label);
     }
 
-    // Reset circle to default radius for next call
     circle.setRadius(NODE_R);
     circle.setOrigin(NODE_R, NODE_R);
 }
 
 void GameScreen::drawStats(sf::RenderWindow& window) {
-    constexpr float PW    = 320.f;
-    constexpr float PH    = WIN_H - 50.f;
-    constexpr float PX    = WIN_W - PW - 10.f;
-    constexpr float PY    = 20.f;
-    constexpr int   VISH  = 18;
-    constexpr float ROW_H = 17.f;
-
-    sf::RectangleShape panel(sf::Vector2f(PW, PH));
-    panel.setPosition(PX, PY);
-    panel.setFillColor(sf::Color(10, 8, 6, 210));
+    // Panel background
+    sf::RectangleShape panel(sf::Vector2f(STATS_PW, STATS_PH));
+    panel.setPosition(STATS_PX, STATS_PY);
+    panel.setFillColor(sf::Color(10, 8, 6, 218));
     panel.setOutlineColor(sf::Color(150, 120, 60));
     panel.setOutlineThickness(1.5f);
     window.draw(panel);
 
-    sf::Text header;
-    header.setFont(m_assets.font());
-    header.setCharacterSize(15);
-    header.setFillColor(sf::Color(220, 200, 150));
-    header.setStyle(sf::Text::Bold);
+    // --- Helpers ---
+    auto makeText = [&](const std::string& s, unsigned sz, sf::Color col, bool bold = false) {
+        sf::Text t;
+        t.setFont(m_assets.font());
+        t.setCharacterSize(sz);
+        t.setFillColor(col);
+        if (bold) t.setStyle(sf::Text::Bold);
+        t.setString(s);
+        return t;
+    };
+    auto drawDivider = [&](float y) {
+        sf::RectangleShape div(sf::Vector2f(STATS_PW - 16.f, 1.f));
+        div.setPosition(STATS_PX + 8.f, y);
+        div.setFillColor(sf::Color(100, 80, 40, 180));
+        window.draw(div);
+    };
+    auto drawRow = [&](const std::string& lbl, const std::string& val, float y) {
+        auto lt = makeText(lbl, 13, sf::Color(160, 145, 110));
+        lt.setPosition(STATS_PX + 10.f, y);
+        window.draw(lt);
+        auto vt = makeText(val, 13, sf::Color(230, 220, 180));
+        vt.setPosition(STATS_PX + 158.f, y);
+        window.draw(vt);
+    };
+    auto drawSecHdr = [&](const std::string& s, float y) {
+        auto t = makeText(s, 11, sf::Color(180, 155, 90), true);
+        t.setPosition(STATS_PX + 10.f, y);
+        window.draw(t);
+    };
 
-    std::ostringstream ss;
-    ss << std::fixed << std::setprecision(1) << m_runner.bestCost();
-    header.setString("Best cost: " + ss.str());
-    header.setPosition(PX + 8.f, PY + 8.f);
-    window.draw(header);
+    float y = STATS_PY + 8.f;
 
-    header.setStyle(sf::Text::Regular);
-    header.setCharacterSize(13);
-    header.setString("Route order:  (scroll with mouse wheel)");
-    header.setPosition(PX + 8.f, PY + 28.f);
-    window.draw(header);
+    // === Title ===
+    {
+        auto title = makeText("Algorithm Results", 15, sf::Color(220, 200, 150), true);
+        auto tb = title.getLocalBounds();
+        title.setOrigin(tb.left + tb.width / 2.f, tb.top);
+        title.setPosition(STATS_PX + STATS_PW / 2.f, y);
+        window.draw(title);
+        y += 26.f;
+    }
+    drawDivider(y); y += 10.f;
 
+    // === Configuration ===
+    drawSecHdr("CONFIGURATION", y); y += 18.f;
+
+    static const char* ALGO_NAMES[] = {
+        "", "Hill Climbing", "HC with Tries", "Simulated Annealing", "Genetic Algorithm"
+    };
+    drawRow("Algorithm:", ALGO_NAMES[m_algoChoice], y); y += 18.f;
+    drawRow("Nodes:", std::to_string(m_graph.size()), y); y += 18.f;
+
+    if (m_fixedStart >= 0) {
+        std::string sname = m_graph.getNode(m_fixedStart).name;
+        if ((int)sname.size() > 16) sname = sname.substr(0, 15) + ".";
+        drawRow("Fixed Start:", sname, y);
+    } else {
+        drawRow("Fixed Start:", "None", y);
+    }
+    y += 18.f;
+
+    std::ostringstream pss;
+    pss << std::fixed;
+    if (m_algoChoice == 2) {
+        drawRow("Max Tries:", std::to_string(m_hctTMax), y); y += 16.f;
+    } else if (m_algoChoice == 3) {
+        pss.str(""); pss << std::setprecision(1) << m_saParams.TI;
+        drawRow("T-Initial:", pss.str(), y); y += 16.f;
+        pss.str(""); pss << std::setprecision(4) << m_saParams.TF;
+        drawRow("T-Final:", pss.str(), y); y += 16.f;
+        pss.str(""); pss << std::setprecision(4) << m_saParams.FR;
+        drawRow("Cool. Rate:", pss.str(), y); y += 16.f;
+    } else if (m_algoChoice == 4) {
+        drawRow("Pop. Size:", std::to_string(m_gaParams.popSize), y); y += 15.f;
+        drawRow("Generations:", std::to_string(m_gaParams.generations), y); y += 15.f;
+        pss.str(""); pss << std::setprecision(1) << m_gaParams.mutationRate * 100.0 << "%";
+        drawRow("Mut. Rate:", pss.str(), y); y += 15.f;
+        drawRow("Tournament:", std::to_string(m_gaParams.tournamentSize), y); y += 15.f;
+        pss.str(""); pss << std::setprecision(1) << m_gaParams.gi * 100.0 << "%";
+        drawRow("Elite:", pss.str(), y); y += 15.f;
+        pss.str(""); pss << std::setprecision(1) << m_gaParams.br * 100.0 << "%";
+        drawRow("Breed:", pss.str(), y); y += 15.f;
+        drawRow("Stagnation:", std::to_string(m_gaParams.stagnation), y); y += 15.f;
+    }
+
+    y += 4.f;
+    drawDivider(y); y += 10.f;
+
+    // === Route Edges (scrollable) ===
     const auto& route = m_runner.bestRoute();
-    sf::Text row;
-    row.setFont(m_assets.font());
-    row.setCharacterSize(12);
+    int numEdges = (int)route.size();
+    {
+        std::string hdr = "ROUTE  (" + std::to_string(numEdges) + " steps, scroll to see all)";
+        drawSecHdr(hdr, y); y += 18.f;
+    }
 
-    int maxScroll = std::max(0, (int)route.size() - VISH);
+    float edgeAreaY0 = y;
+    constexpr float RESULTS_H = 80.f;
+    constexpr float DIV2_H    = 12.f;
+    float edgeAreaY1 = STATS_PY + STATS_PH - RESULTS_H - DIV2_H - 8.f;
+    float edgeAreaH  = edgeAreaY1 - edgeAreaY0;
+    if (edgeAreaH < 20.f) edgeAreaH = 20.f;
+
+    constexpr float ROW_H = 17.f;
+    int visRows = std::max(1, (int)(edgeAreaH / ROW_H));
+
+    int maxScroll = std::max(0, numEdges - visRows);
+    if (m_statsScroll < 0) m_statsScroll = 0;
     if (m_statsScroll > maxScroll) m_statsScroll = maxScroll;
 
-    for (int i = 0; i < VISH && (m_statsScroll + i) < (int)route.size(); i++) {
-        int nodeId = route[m_statsScroll + i];
-        std::string name = m_graph.getNode(nodeId).name;
-        row.setString(std::to_string(m_statsScroll + i + 1) + ". " + name);
-        row.setFillColor(sf::Color(210, 200, 170));
-        row.setPosition(PX + 8.f, PY + 50.f + i * ROW_H);
-        window.draw(row);
+    // Determine which edge the mouse is hovering over
+    int hoveredEdge = -1;
+    if (m_mousePos.x >= STATS_PX && m_mousePos.x <= STATS_PX + STATS_PW &&
+        m_mousePos.y >= edgeAreaY0 && m_mousePos.y < edgeAreaY1) {
+        int rel = (int)((m_mousePos.y - edgeAreaY0) / ROW_H);
+        int abs_i = m_statsScroll + rel;
+        if (abs_i >= 0 && abs_i < numEdges) hoveredEdge = abs_i;
+    }
+
+    // Draw rows clipped to the edge-list viewport
+    {
+        sf::View edgeView;
+        edgeView.setViewport(sf::FloatRect(
+            STATS_PX / WIN_W, edgeAreaY0 / WIN_H,
+            STATS_PW / WIN_W, edgeAreaH / WIN_H));
+        edgeView.setSize(STATS_PW, edgeAreaH);
+        edgeView.setCenter(STATS_PW / 2.f, edgeAreaH / 2.f);
+        window.setView(edgeView);
+
+        for (int i = 0; i < visRows && (m_statsScroll + i) < numEdges; i++) {
+            int ei   = m_statsScroll + i;
+            int a    = route[ei];
+            int b    = route[(ei + 1) % numEdges];
+            double c = m_distMatrix.empty() ? 0.0 : m_distMatrix[a][b];
+            float rowY = i * ROW_H;
+            bool  hov  = (ei == hoveredEdge);
+
+            if (hov) {
+                sf::RectangleShape bg(sf::Vector2f(STATS_PW - 4.f, ROW_H - 1.f));
+                bg.setPosition(2.f, rowY);
+                bg.setFillColor(sf::Color(45, 35, 14, 200));
+                window.draw(bg);
+            }
+
+            std::string an = m_graph.getNode(a).name;
+            std::string bn = m_graph.getNode(b).name;
+            if ((int)an.size() > 11) an = an.substr(0, 10) + ".";
+            if ((int)bn.size() > 11) bn = bn.substr(0, 10) + ".";
+
+            sf::Text rowTxt;
+            rowTxt.setFont(m_assets.font());
+            rowTxt.setCharacterSize(11);
+            rowTxt.setFillColor(hov ? sf::Color(255, 240, 160) : sf::Color(200, 190, 160));
+            rowTxt.setString(std::to_string(ei + 1) + ". " + an + " -> " + bn);
+            rowTxt.setPosition(6.f, rowY + 2.f);
+            window.draw(rowTxt);
+
+            std::ostringstream cs;
+            cs << std::fixed << std::setprecision(1) << c;
+            sf::Text costTxt;
+            costTxt.setFont(m_assets.font());
+            costTxt.setCharacterSize(11);
+            costTxt.setFillColor(hov ? sf::Color(255, 235, 110) : sf::Color(220, 205, 150));
+            costTxt.setString(cs.str());
+            auto cb2 = costTxt.getLocalBounds();
+            costTxt.setPosition(STATS_PW - cb2.width - cb2.left - 8.f, rowY + 2.f);
+            window.draw(costTxt);
+        }
+
+        window.setView(window.getDefaultView());
+    }
+
+    // Tooltip for hovered edge (drawn in screen space after restoring default view)
+    if (hoveredEdge >= 0 && hoveredEdge < numEdges) {
+        int a = route[hoveredEdge];
+        int b = route[(hoveredEdge + 1) % numEdges];
+        bool direct = m_graph.hasEdge(a, b);
+        float tooltipH = direct ? 72.f : 38.f;
+
+        float rowScreenY = edgeAreaY0 + (hoveredEdge - m_statsScroll) * ROW_H;
+        float tooltipY   = rowScreenY + ROW_H + 2.f;
+        if (tooltipY + tooltipH > STATS_PY + STATS_PH - 8.f)
+            tooltipY = rowScreenY - tooltipH - 2.f;
+        tooltipY = std::max(tooltipY, edgeAreaY0);
+
+        const float TW = STATS_PW - 20.f;
+        sf::RectangleShape tip(sf::Vector2f(TW, tooltipH));
+        tip.setPosition(STATS_PX + 10.f, tooltipY);
+        tip.setFillColor(sf::Color(22, 17, 8, 245));
+        tip.setOutlineColor(sf::Color(160, 130, 60, 200));
+        tip.setOutlineThickness(1.f);
+        window.draw(tip);
+
+        float ty = tooltipY + 5.f;
+        auto drawTipLine = [&](const std::string& s, sf::Color col, bool bold = false) {
+            auto t = makeText(s, 11, col, bold);
+            t.setPosition(STATS_PX + 14.f, ty);
+            window.draw(t);
+            ty += 14.f;
+        };
+
+        std::string an = m_graph.getNode(a).name;
+        std::string bn = m_graph.getNode(b).name;
+        drawTipLine(an + " -> " + bn, sf::Color(240, 220, 160), true);
+
+        if (direct) {
+            const Edge& e = m_graph.getEdge(a, b);
+            std::ostringstream ss;
+            ss << std::fixed << std::setprecision(2);
+            ss.str(""); ss << "Distance:    " << e.distance;
+            drawTipLine(ss.str(), sf::Color(185, 170, 135));
+            ss.str(""); ss << "Danger:      " << e.danger << "  (x4)";
+            drawTipLine(ss.str(), sf::Color(185, 170, 135));
+            ss.str(""); ss << "Difficulty:  " << e.difficulty << "  (x3)";
+            drawTipLine(ss.str(), sf::Color(185, 170, 135));
+            ss.str(""); ss << "Total:       " << e.weight();
+            drawTipLine(ss.str(), sf::Color(220, 200, 150), true);
+        } else {
+            drawTipLine("Indirect path (no direct edge)", sf::Color(150, 140, 110));
+        }
+    }
+
+    // === Results (fixed at bottom) ===
+    drawDivider(edgeAreaY1 + 4.f);
+    float ry = edgeAreaY1 + DIV2_H + 4.f;
+
+    drawSecHdr("RESULTS", ry); ry += 18.f;
+
+    double Si = m_runner.initialCost();
+    double Sf = m_runner.bestCost();
+    double G  = (Si > 0.0) ? 100.0 * std::abs(Si - Sf) / Si : 0.0;
+
+    std::ostringstream rss;
+    rss << std::fixed << std::setprecision(1);
+
+    rss.str(""); rss << Si;
+    drawRow("Initial Cost:", rss.str(), ry); ry += 18.f;
+
+    rss.str(""); rss << Sf;
+    drawRow("Final Cost:", rss.str(), ry); ry += 18.f;
+
+    {
+        rss.str(""); rss << std::setprecision(2) << G << "%";
+        auto lt = makeText("Gain (G):", 13, sf::Color(160, 145, 110));
+        lt.setPosition(STATS_PX + 10.f, ry);
+        window.draw(lt);
+        bool improved = Sf < Si - 0.001;
+        sf::Color gc = improved ? sf::Color(120, 230, 100) : sf::Color(200, 190, 160);
+        auto vt = makeText(rss.str(), 13, gc, improved);
+        vt.setPosition(STATS_PX + 158.f, ry);
+        window.draw(vt);
     }
 }
 
 void GameScreen::draw(sf::RenderWindow& window) {
-    // --- Map content drawn in world-space view ---
+    // Map content drawn in world-space view
     window.setView(m_mapView);
     window.draw(m_mapSprite);
     drawEdges(window);
@@ -287,7 +512,7 @@ void GameScreen::draw(sf::RenderWindow& window) {
         drawNodes(window, m_runner.bestRoute(), COL_FINAL_PATH, true);
     }
 
-    // --- UI drawn in pixel-space ---
+    // UI drawn in pixel-space
     window.setView(window.getDefaultView());
     if (m_animDone) drawStats(window);
     window.draw(m_backBtn);

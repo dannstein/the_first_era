@@ -18,3 +18,4 @@ target_compile_definitions(the_first_era PRIVATE
 )
 
 file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/config")
+file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/results")

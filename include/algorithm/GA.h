@@ -3,6 +3,7 @@
 #include <random>
 #include "core/TSP.h"
 #include "algorithm/AlgoCallback.h"
+#include "algorithm/AlgoParams.h"
 
 class GA {
 public:
@@ -16,7 +17,9 @@ public:
     // Remainder (1 - GI - BR) = 10% random injections for diversity
 
     std::pair<std::vector<int>, double> run(const TSP& tsp, int size,
-                                             AlgoCallback cb = nullptr);
+                                             int fixedStart = -1,
+                                             AlgoCallback cb = nullptr,
+                                             GAParams params = {});
 
 private:
     struct Individual {
@@ -26,8 +29,12 @@ private:
 
     using Population = std::vector<Individual>;
 
-    Population       initPopulation(const TSP& tsp, int size, std::mt19937& gen);
-    Individual       selection(const Population& pop, std::mt19937& gen);
-    std::vector<int> crossover(const std::vector<int>& p1, const std::vector<int>& p2, std::mt19937& gen);
-    void             mutate(std::vector<int>& solution, std::mt19937& gen);
+    Population       initPopulation(const TSP& tsp, int size, std::mt19937& gen,
+                                     int fixedStart, const GAParams& params);
+    Individual       selection(const Population& pop, std::mt19937& gen,
+                                int tournamentSize);
+    std::vector<int> crossover(const std::vector<int>& p1, const std::vector<int>& p2,
+                                std::mt19937& gen, int fixedStart = -1);
+    void             mutate(std::vector<int>& solution, std::mt19937& gen,
+                             int fixedStart, double mutationRate);
 };

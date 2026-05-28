@@ -55,7 +55,7 @@ struct Node {
 A `Node` represents a location on the map. It holds an integer `id` (0-based index internally, 1-based in output) and a `name` string for human-readable display.
 
 **Why a struct and not a class?**
-Nodes are plain data containers with no behaviour. In C++, `struct` is appropriate when the type is purely data — there is no logic to encapsulate, no invariants to protect. Using a class would add unnecessary ceremony.
+Nodes are plain data containers with no behavior. In C++, `struct` is appropriate when the type is purely data — there is no logic to encapsulate, no invariants to protect. Using a class would add unnecessary ceremony.
 
 **Why store the id inside the node?**
 When printing a route, we iterate over a `vector<int>` of indices and call `graph.getNode(index)`. Having `id` inside the node means we don't need to pass the index separately to the print function — the node carries its own identity.
@@ -88,7 +88,7 @@ double Edge::weight() const {
     return distance + 4.0 * danger + 3.0 * difficulty;
 }
 ```
-The multipliers encode the problem's priorities: danger is the most penalised factor (×4) since it directly threatens the traveler's life, while terrain difficulty (×3) slows travel but is more manageable.
+The multipliers encode the problem's priorities: danger is the most penalized factor (×4) since it directly threatens the traveler's life, while terrain difficulty (×3) slows travel but is more manageable.
 
 **`exists()` — the sentinel pattern:**
 ```cpp
@@ -126,7 +126,7 @@ For this problem, the TSP algorithms need to query the edge between any two node
 **`allPairsShortestPath()` — Floyd-Warshall:**
 ```cpp
 std::vector<std::vector<double>> Graph::allPairsShortestPath() const {
-    // initialise with direct edge weights or infinity
+    // initialize with direct edge weights or infinity
     // triple loop: for each intermediate node k, relax all i→j paths
 }
 ```
@@ -140,7 +140,7 @@ The INF guard in the relaxation step:
 if (dist[i][k] != INF && dist[k][j] != INF)
     dist[i][j] = std::min(dist[i][j], dist[i][k] + dist[k][j]);
 ```
-prevents infinity + infinity overflow (undefined behaviour for floating-point infinity arithmetic in some compilers).
+prevents infinity + infinity overflow (undefined behavior for floating-point infinity arithmetic in some compilers).
 
 ---
 
@@ -225,13 +225,13 @@ The method has no state — it creates its own generator internally. Making it `
 
 ### Theory
 
-Hill Climbing is a **local search** algorithm. Starting from an initial solution, it repeatedly moves to a better neighbouring solution until no improvement can be found. The analogy is climbing a hill: always step uphill (or in our case, downhill since we minimise cost) until you reach a peak (local optimum).
+Hill Climbing is a **local search** algorithm. Starting from an initial solution, it repeatedly moves to a better neighboring solution until no improvement can be found. The analogy is climbing a hill: always step uphill (or in our case, downhill since we minimize cost) until you reach a peak (local optimum).
 
-This is **steepest-descent** hill climbing: at each step, all neighbours are evaluated and the best one is selected — not just the first improvement found.
+This is **steepest-descent** hill climbing: at each step, all neighbors are evaluated and the best one is selected — not just the first improvement found.
 
 ### Implementation
 
-**`Neighbors` — the swap neighbourhood:**
+**`Neighbors` — the swap neighborhood:**
 ```cpp
 for (int i = 0; i < size - 1; i++) {
     for (int j = i + 1; j < size; j++) {
@@ -256,7 +256,7 @@ while (true) {
     }
 }
 ```
-If the best neighbour is better than the current solution, move to it and repeat. If not, we have reached a local optimum — return immediately.
+If the best neighbor is better than the current solution, move to it and repeat. If not, we have reached a local optimum — return immediately.
 
 ### Limitations
 
@@ -272,7 +272,7 @@ If the best neighbour is better than the current solution, move to it and repeat
 
 ### Theory
 
-HCT is a direct extension of HC that addresses its most critical limitation: stopping immediately at the first local optimum. HCT allows the search to continue for up to `t_max` additional steps even when the best neighbour is worse than the current solution, in the hope of escaping a "valley" in the search landscape.
+HCT is a direct extension of HC that addresses its most critical limitation: stopping immediately at the first local optimum. HCT allows the search to continue for up to `t_max` additional steps even when the best neighbor is worse than the current solution, in the hope of escaping a "valley" in the search landscape.
 
 ### Implementation
 
@@ -310,7 +310,7 @@ When HCT accepts a worse move, `current` may degrade. After wandering through wo
 **Why reset `t = 0` on improvement?**
 If the algorithm finds an improvement after accepting some worse moves, it has successfully escaped a valley. The try counter is reset to give the search a fresh budget from the new (better) position.
 
-**The `Neighbors` function is identical to HC** — the same full swap neighbourhood is explored at every step. The only difference is in how the best neighbour is accepted or rejected in the outer loop.
+**The `Neighbors` function is identical to HC** — the same full swap neighborhood is explored at every step. The only difference is in how the best neighbor is accepted or rejected in the outer loop.
 
 ---
 
@@ -320,7 +320,7 @@ If the algorithm finds an improvement after accepting some worse moves, it has s
 
 ### Theory
 
-Simulated Annealing is inspired by the metallurgical process of annealing: slowly cooling a material so atoms settle into a low-energy crystalline structure. In optimisation terms, it is a probabilistic local search that can accept worse solutions, with the probability of doing so decreasing over time as the "temperature" drops.
+Simulated Annealing is inspired by the metallurgical process of annealing: slowly cooling a material so atoms settle into a low-energy crystalline structure. In optimization terms, it is a probabilistic local search that can accept worse solutions, with the probability of doing so decreasing over time as the "temperature" drops.
 
 The key insight over HC: accepting worse moves occasionally allows the algorithm to escape local optima. As temperature decreases, the algorithm becomes increasingly selective, eventually behaving like hill climbing.
 
@@ -349,7 +349,7 @@ static constexpr double FR  = 0.995;  // Cooling rate (factor per step)
 - **FR = 0.995:** Slow cooling. Total iterations: `log(TF/TI) / log(FR) ≈ 13,800`. A slower cooling rate gives the algorithm more time to explore at each temperature level.
 
 **Why TF = 0.001 and not 0.1?**
-At TF = 0.1, the algorithm still has a non-trivial acceptance probability for small worsenings at termination, meaning it has not fully "frozen". 0.001 ensures the system is effectively frozen before stopping.
+At TF = 0.1, the algorithm still has a non-trivial acceptance probability for small worsening at termination, meaning it has not fully "frozen". 0.001 ensures the system is effectively frozen before stopping.
 
 ### Implementation
 
@@ -362,7 +362,7 @@ std::vector<int> s = solution;
 std::swap(s[i], s[j]);
 return {s, tsp.evaluate(s)};
 ```
-Unlike HC which evaluates all neighbours, SA evaluates **one random neighbour** per step. This is intentional: SA's strength is in its probabilistic acceptance, not exhaustive search. Evaluating a single random neighbour per temperature step keeps the per-iteration cost O(n) instead of O(n²).
+Unlike HC which evaluates all neighbors, SA evaluates **one random neighbor** per step. This is intentional: SA's strength is in its probabilistic acceptance, not exhaustive search. Evaluating a single random neighbor per temperature step keeps the per-iteration cost O(n) instead of O(n²).
 
 **`Annealing` — the main loop:**
 ```cpp
@@ -416,7 +416,7 @@ struct Individual {
 };
 ```
 
-`route` and `fitness` are bundled together. This design decision prevents the population vector and fitness vector from falling out of sync (a common bug when they are stored separately). Fitness is computed **exactly once** when an `Individual` is created — at initialisation, after crossover+mutation, or when a random individual is injected. It is never recomputed unnecessarily.
+`route` and `fitness` are bundled together. This design decision prevents the population vector and fitness vector from falling out of sync (a common bug when they are stored separately). Fitness is computed **exactly once** when an `Individual` is created — at initialization, after crossover+mutation, or when a random individual is injected. It is never recomputed unnecessarily.
 
 ### Parameters
 
@@ -430,7 +430,7 @@ static constexpr double BR               = 0.8;  // Breeding Rate (offspring %)
 static constexpr int    STAGNATION_LIMIT = 75;
 ```
 
-### Population Initialisation
+### Population Initialization
 
 ```cpp
 for (int i = 0; i < POP_SIZE; i++) {
@@ -515,10 +515,10 @@ void GA::mutate(std::vector<int>& solution, std::mt19937& gen) {
 With probability `MUTATION_RATE` (8%), a random segment `[i..j]` of the route is reversed. This is equivalent to a **2-opt move**: it removes the two edges connecting to the endpoints of the segment and reconnects them in the only other valid way.
 
 **Why reversal instead of simple swap?**
-A simple swap exchanges two isolated cities, which is a relatively unstructured change. A reversal restructures the order of an entire sub-sequence, which directly explores the **2-opt neighbourhood** — one of the most well-studied and effective local search structures for TSP. In practice, 2-opt reversal mutation produces noticeably better results than swap mutation for routing problems.
+A simple swap exchanges two isolated cities, which is a relatively unstructured change. A reversal restructures the order of an entire sub-sequence, which directly explores the **2-opt neighborhood** — one of the most well-studied and effective local search structures for TSP. In practice, 2-opt reversal mutation produces noticeably better results than swap mutation for routing problems.
 
 **Why 8% mutation rate?**
-Too low (1–2%): the population homogenises quickly, and the algorithm converges prematurely to local optima. Too high (20%+): solutions are essentially re-randomised each generation, destroying useful structure from crossover. 8% balances exploration and exploitation for a 50-node problem.
+Too low (1–2%): the population homogenizes quickly, and the algorithm converges prematurely to local optima. Too high (20%+): solutions are essentially re-randomized each generation, destroying useful structure from crossover. 8% balances exploration and exploitation for a 50-node problem.
 
 ### Generational Replacement — GI / BR Structure
 
